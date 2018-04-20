@@ -19,6 +19,8 @@ The pipeline expands on the simple method by using the method outlined by Ganzet
 6. Creation of myelin map (co-registered, bias corrected, intensity adjusted t1w image / co-registered, bias corrected, intensity adjusted t2w image)
 7. Warping of myelin map from subj space to MNI.
 
+**NOTE:** Nipype script will be available soon.
+
 Refs:
 
 Ganzetti et al. (2014). Whole brain myelin mapping using T1- and T2-weighted MR imaging data
