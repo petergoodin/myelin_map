@@ -1,4 +1,4 @@
-# Myelin map script
+# Myelin map
 
 Myelin mapping is a method for "myelin" quantification (Glass et al., however see Uddin et al., who suggest it does not represent myelin specifically, but can still be used to examine white matter microstructure [aka you can still use the method to tell if there's something going down in the white matter]).
 
