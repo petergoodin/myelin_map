@@ -7,7 +7,7 @@ The method is simple:
 2. t1w / t2w
 3. Myelin map
 
-This notebook outlines the steps to calculate myelin maps using Nibabel, Advanced Normalization Tools (ANTs), scipy stats and some numpy tinkering. 
+This repo contains a notebook showing the raw work and scripts to run to create the myelin maps using Nibabel, Advanced Normalization Tools (ANTs), scipy stats and some numpy tinkering. 
 
 The pipeline expands on the simple method by using the method outlined by Ganzetti et al.:
 
