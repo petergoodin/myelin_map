@@ -18,8 +18,7 @@ The pipeline expands on the simple method by using the method outlined by Ganzet
 5. Linear intensity adjustment of subj space t1 & t2 images w/ eye + bone masks.
 6. Creation of myelin map (co-registered, bias corrected, intensity adjusted t1w image / co-registered, bias corrected, intensity adjusted t2w image)
 7. Warping of myelin map from subj space to MNI.
-
-**NOTE:** Nipype script will be available soon.
+8. Smoothing of output.
 
 Refs:
 
