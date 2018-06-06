@@ -26,4 +26,4 @@ Ganzetti et al. (2014). Whole brain myelin mapping using T1- and T2-weighted MR 
 
 Glass & Van Essen (2011). Mapping human cortical areas in vivo based on myelin content as revealed by T1- and T2-weighted MRI
 
-Uddin et al (2018). Can T1w T2w ratio be used as a myelin‐specific measure in subcortical structures? Comparisons between FSE‐based T1wT2w ratios, GRASE‐based T1w T2w ratios and multi‐echo GRASE‐based myelin water fractions
+Uddin et al (2017). Can T1w T2w ratio be used as a myelin‐specific measure in subcortical structures? Comparisons between FSE‐based T1wT2w ratios, GRASE‐based T1w T2w ratios and multi‐echo GRASE‐based myelin water fractions
