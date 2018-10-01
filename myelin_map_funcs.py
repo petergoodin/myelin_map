@@ -6,36 +6,37 @@ from nibabel import processing as nbproc
 import matplotlib.pylab as plt
 import seaborn as sns
 from nipype.interfaces import ants, dcm2nii
-import glob
 import fnmatch
+import glob
 import os
 
-
 def dcm_convert(scan_dict, output_dir):
-    
+
     subj = os.path.split(output_dir)[-1]
-    
-    if 't1.nii.gz' and 't2.nii.gz' in os.listdir(output_dir):
+    dir_files = os.listdir(output_dir)
+
+
+    if fnmatch.filter(dir_files, 't1.nii.gz') and fnmatch.filter(dir_files, 't2.nii.gz'):
         print('DCM to nifti conversion already run for {}. Not re-running.'.format(subj))
-        
+
         #Get output from previous run, return in dictionary.
         dcm_out = glob.glob(os.path.join(output_dir, 't?.nii.gz'))
         t1_subj_nii = dcm_out[0]
         t2_subj_nii = dcm_out[1]
-    
+
     else:
         scan_list = list(scan_dict.keys())
         anat_convert_output = []
-    
+
         for scan in scan_list:
-    
+
             anat_convert = dcm2nii.Dcm2niix()
             anat_convert.inputs.source_names = scan_dict[scan]
             anat_convert.inputs.out_filename = scan
             anat_convert.inputs.output_dir = output_dir
             anat_convert.inputs.compress = 'y'
             results = anat_convert.run()
-    
+
             anat_convert_output.append(results.outputs.get()['converted_files'])
         t1_subj_nii, t2_subj_nii = anat_convert_output
 
@@ -46,6 +47,8 @@ def dcm_convert(scan_dict, output_dir):
 
 #Plot histograms of data
 def plot_mask_dist(t1_fn, t2_fn, eye_mask_fn, temp_bone_mask_fn, stat = None):
+
+
 
     t1 = nb.load(t1_fn).get_data().ravel()
     t2 = nb.load(t2_fn).get_data().ravel()
@@ -117,7 +120,7 @@ def plot_ants_warp(fixed, moving, nslices, output_name = None):
     view_slices = np.linspace(100, fixed_data.shape[1] - 1, num = nslices).astype(int)
 
     fig = plt.figure(figsize = [50, 25])
-    
+
     for n, view_slice in enumerate(view_slices):
         plt.subplot(1, nslices, n + 1)
         plt.imshow(fixed_data[:, :, view_slice], cmap = 'Greys_r')
@@ -146,35 +149,39 @@ def ants_reg(fixed = None, moving = None, prefix = None, fixed_mask = None, movi
     use the inverse transform to warp from subj to MNI.
 
     '''
-    
+
+    subj = os.path.split(output_dir)[-1]
+
     if 'output_warped_image.nii.gz' in os.listdir(output_dir):
-        print("Ants registration already run. Not re-running. You're welcome.")
-        
+
+        print("Ants registration already run. Not re-running for subj {}. You're welcome.".format(subj))
+
         #Get output from previous run, return in dictionary.
         reg_trans = glob.glob(output_dir + '/reg_trans_*')
         reg_trans.append(glob.glob(output_dir + '/output_warped_image*')[0])
         reg_trans.sort()
         reg_labels = ['warped_image', 'trans_mat', 'composite_transform', 'inverse_composite_transform']
         reg_out_files = {k: reg_trans[n] for n, k in enumerate(reg_labels)}
-        
-        
+        print(subj, reg_out_files)
+
+
     else:
-    
+
         reg = ants.Registration()
         reg.inputs.fixed_image = fixed
         reg.inputs.moving_image = moving
-    
+
         if fixed_mask != None:
             reg.inputs.fixed_mask = fixed_mask
-    
+
         if moving_mask != None:
             reg.inputs.moving_mask = fixed_mask
-    
+
         if prefix != None:
             reg.inputs.output_transform_prefix = prefix
         else:
             reg.inputs.output_transform_prefix = os.path.join(output_dir, 'reg_trans_')
-    
+
         reg.inputs.transforms = ['Rigid', 'Affine', 'SyN']
         reg.inputs.transform_parameters = [(0.1,),(0.1,),(0.1, 3.0, 0.0)] #Size of movement for registration (Optimal values are 0.1-0.25.)
         reg.inputs.number_of_iterations =[[1000, 500, 250, 100],[1000, 500, 250, 100],[100, 70, 50, 20]]
@@ -198,22 +205,22 @@ def ants_reg(fixed = None, moving = None, prefix = None, fixed_mask = None, movi
         reg.inputs.shrink_factors = [[8, 4, 2, 1]] * 3
         reg.inputs.use_estimate_learning_rate_once = [True, True, True]
         reg.inputs.use_histogram_matching = True
-    
+
         if output_dir != None:
             reg.inputs.output_warped_image = os.path.join(output_dir, 'output_warped_image.nii.gz')
         else:
             reg.inputs.output_warped_image = './output_warped_image.nii.gz'
-       
-        reg.inputs.num_threads = 1
+
+        reg.inputs.num_threads = os.cpu_count()-1
         reg.inputs.metric_weight = [1.0] * 3
         reg.inputs.winsorize_lower_quantile = 0.005
         reg.inputs.winsorize_upper_quantile = 0.995
         reg.inputs.verbose = True
-    
+
         reg_results = reg.run()
-        
+
         reg_out_files = reg_results.outputs.get()
-    
+
     return(reg_out_files)
 
 
@@ -224,22 +231,26 @@ def mask_transform(mask_list, ref, transmat, output_dir):
     masks = list of eye + temporal mask images
     transmat = mapping from MNI > subj space
     '''
+    subj = os.path.split(output_dir)[-1]
+    dir_files = os.listdir(output_dir)
 
-    if 'eye_mask_subj.nii.gz' or 'temp_bone_mask.nii.gz' in glob.glob(os.path.join(output_dir, '*mask_subj.nii.gz')):
-        print('Mask transforms already run. Not re-running')
+    if fnmatch.filter(dir_files, '*mask_subj*'):
+        print('Mask transforms already run. Not re-running for subj {}'.format(subj))
+
         subj_trans_masks = glob.glob(os.path.join(output_dir, '*mask_subj.nii.gz'))
         subj_trans_masks.sort(key = len)
-        
+        print(subj, 'subj masks', subj_trans_masks)
+
     else:
-        
+
         subj_trans_masks = []
-    
+
         for mask in mask_list:
-    
+
             image_file = os.path.split(mask)[1]
             image_name = image_file.split('.')[0]
             print(image_name)
-    
+
             mni2subj = ants.ApplyTransforms()
             mni2subj.inputs.input_image = mask
             mni2subj.inputs.reference_image = ref
@@ -247,9 +258,9 @@ def mask_transform(mask_list, ref, transmat, output_dir):
             mni2subj.inputs.interpolation = 'NearestNeighbor'
             mni2subj.inputs.output_image = os.path.join(output_dir, image_name + '_subj.nii.gz')
             mni2subj_results = mni2subj.run()
-            
+
             output_image = mni2subj_results.outputs.get()['output_image']
-    
+
             subj_trans_masks.append(output_image)
 
     return(subj_trans_masks)
@@ -259,32 +270,35 @@ def mask_transform(mask_list, ref, transmat, output_dir):
 
 #Register T2 to T1
 def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, moving_mask = None, output_dir = None):
-    
-    if 'output_rigid_image.nii.gz' in os.listdir(output_dir):
-        print("Ants rigid transformation already run. Not re-running.")
-        
-        
+    subj = os.path.split(output_dir)[-1]
+    dir_files =  os.listdir(output_dir)
+
+    if fnmatch.filter(dir_files, 'output_rigid*'):
+        print("Ants rigid transformation already run. Not re-running for subj {}".format(subj))
+
+
         rigid_out_files = {'warped_image': os.path.join(output_dir, 'output_rigid_image.nii.gz')}
-    
+        print('Rigid out', rigid_out_files)
+
     else:
-    
+
         rigid = ants.Registration()
-    
+
         rigid.inputs.fixed_image = fixed
         rigid.inputs.moving_image = moving
-        
+
         if fixed_mask != None:
             rigid.inputs.fixed_mask = fixed_mask
-    
+
         if moving_mask != None:
             rigid.inputs.moving_mask = fixed_mask
-    
+
         if prefix != None:
             rigid.inputs.output_transform_prefix = prefix
         else:
             rigid.inputs.output_transform_prefix = os.path.join(output_dir, 'rigid_trans_')
-        
-        
+
+
         rigid.inputs.transforms = ['Rigid']
         rigid.inputs.transform_parameters = [(0.1,)] #Size of movement for registration (Optimal values are 0.1-0.25.)
         rigid.inputs.number_of_iterations = [[1000, 500, 250, 100]]
@@ -308,28 +322,33 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
         rigid.inputs.shrink_factors = [[8, 4, 2, 1]]
         rigid.inputs.use_estimate_learning_rate_once = [True]
         rigid.inputs.use_histogram_matching = [True]
-        
-        
+
+
         if output_dir != None:
             rigid.inputs.output_warped_image = os.path.join(output_dir, 'output_rigid_image.nii.gz')
         else:
             rigid.inputs.output_warped_image = './output_rigid_image.nii.gz'
-        
-        
-        rigid.inputs.num_threads = 1
+
+
+        rigid.inputs.num_threads = os.cpu_count()-1
         rigid.inputs.metric_weight = [1.0]
         rigid.inputs.winsorize_lower_quantile = 0.005
         rigid.inputs.winsorize_upper_quantile = 0.995
         rigid.inputs.verbose = True
         rigid.inputs.interpolation = 'NearestNeighbor' #Started with NN, gave good output.
         rigid_results = rigid.run()
-        
+
         rigid_out_files = rigid_results.outputs.get()
-        
+        print('Rigid out', rigid_out_files)
+
     return(rigid_out_files)
 
 #Myelin map to MNI
-def subj2mni(moving = None, ref = None, transmat = None, output_directory = None):
+def subj2mni(moving = None, ref = None, transmat = None, output_dir = None):
+
+    subj = os.path.split(output_dir)[-1]
+
+    print('Warping {} to MNI space'.format(subj))
 
     subj2mni = ants.ApplyTransforms()
     subj2mni.inputs.dimension = 3
@@ -338,23 +357,23 @@ def subj2mni(moving = None, ref = None, transmat = None, output_directory = None
     subj2mni.inputs.transforms = transmat
 
 
-    if output_directory != None:
-        subj2mni.inputs.output_image = os.path.join(output_directory, 'myelin_map_mni.nii.gz')
+    if output_dir != None:
+        subj2mni.inputs.output_image = os.path.join(output_dir, 'myelin_map_mni.nii.gz')
     else:
         subj2mni.inputs.output_image = ('myelin_map_mni.nii.gz')
     subj2mni.inputs.interpolation = 'NearestNeighbor'
     subj2mni_results = subj2mni.run()
-    
+
     subj2mni_output = subj2mni_results.outputs.get()
     subj2mni_im = subj2mni_output['output_image']
-    
+
     return(subj2mni_output, subj2mni_im)
 
 
 ###INTENSITY MANIPULATION###
 
 #Bias correction
-def bias_corr(images, output_dir):
+def bias_corr(images, brain_mask, output_dir):
     '''
     Uses N4 bias correction to remove intensity inhomogeneities
 
@@ -362,137 +381,150 @@ def bias_corr(images, output_dir):
     images = List of images (w/ paths) to be corrected
     '''
 
-    if 't1_bias_corr.nii.gz' or 't2_bias_corr.nii.gz' in os.listdir(output_dir):
-        print("Bias correction already run. Not re-running.")
-        
+    subj = os.path.split(output_dir)[-1]
+    dir_files = os.listdir(output_dir)
+
+    if fnmatch.filter(dir_files, '*bias*'):
+        print("Bias correction already run. Not re-running for subj {}".format(subj))
+
         bias_output = glob.glob(os.path.join(output_dir, '*_bias_corr.nii.gz'))
         bias_output.sort(key = len) #Assumes T2 image has been rigidly transformed to t1
 
     else:
         bias_output = []
-    
+
         for n, image in enumerate(images):
             image_file = os.path.split(image)[1]
             image_name = image_file.split('.')[0]
             print(image, image_name)
-    
-    
+
+
             n4  = ants.N4BiasFieldCorrection()
             n4.inputs.dimension = 3
-            n4.inputs.input_image = image      
+            n4.inputs.input_image = image
             n4.inputs.bspline_fitting_distance = 300
             n4.inputs.shrink_factor = 2
-            n4.inputs.n_iterations = [50,50,30,20]
+            n4.inputs.n_iterations = [50,50,50,50]
             n4.inputs.save_bias = True
             n4.inputs.bias_image = os.path.join(output_dir, image_name + '_bias_field.nii.gz')
             n4.inputs.output_image = os.path.join(output_dir, image_name + '_bias_corr.nii.gz')
-            n4.inputs.num_threads = 1
-            n4_results = n4.run()      
-            
-            
+            n4.inputs.num_threads = os.cpu_count()-1
+            n4.inputs.mask_image = brain_mask
+            n4_results = n4.run()
+
+
             output_image = n4_results.outputs.get()['output_image']
-    
+
             bias_output.append(output_image)
-    
+
     return(bias_output)
 
 
 def image_smooth(image_fn, fwhm = None, output_dir = None):
-    
+
+    subj = os.path.split(output_dir)[-1]
+
+    print('Smoothing {} with kernel size: {}'.format(subj, fwhm))
+
     im_name = os.path.split(image_fn)[-1].split('.')[0]
-    
+
     im_hdr = nb.load(image_fn)
-    
+
     smoothed = nbproc.smooth_image(img = im_hdr, fwhm = fwhm)
-    
+
     output_fn = os.path.join(output_dir, im_name + '_smoothed_' + str(fwhm) + '_mm.nii.gz')
-    
+
     nb.Nifti1Image(smoothed.get_data(), affine = im_hdr.affine, header = im_hdr.header).to_filename(output_fn)
-    
+
     return(output_fn)
 
-
-
 #Calibration stage
-def image_calibration(t1_subj_bias_corr = None, t2_subj_bias_corr = None, t1_mni_bias_corr = None, t2_mni_bias_corr = None, eye_subj_mask = None, temp_bone_subj_mask = None, brain_subj_mask = None, eye_mni_mask = None, temp_bone_mni_mask = None, brain_mni_mask = None, output_directory = None):
+def image_calibration(t1_subj_bias_corr = None,
+                      t2_subj_bias_corr = None,
+                      t1_mni_bias_corr = None,
+                      t2_mni_bias_corr = None,
+                      eye_subj_mask = None,
+                      temp_bone_subj_mask = None,
+                      brain_subj_mask = None,
+                      eye_mni_mask = None,
+                      temp_bone_mni_mask = None,
+                      brain_mni_mask = None,
+                      output_dir = None):
 
-    subj = os.path.split(output_directory)[-1]
-    
+    subj = os.path.split(output_dir)[-1]
+
     #load images
     t1_subj_hdr = nb.load(t1_subj_bias_corr)
     t1_subj = t1_subj_hdr.get_data()
     t2_subj = nb.load(t2_subj_bias_corr).get_data()
-    
+
     t1_mni = nb.load(t1_mni_bias_corr).get_data()
     t2_mni = nb.load(t2_mni_bias_corr).get_data()
+
 
     #Load masks
     eye_subj_mask = nb.load(eye_subj_mask).get_data().astype(bool)
     temp_bone_subj_mask = nb.load(temp_bone_subj_mask).get_data().astype(bool)
     brain_subj_mask = nb.load(brain_subj_mask).get_data().astype(bool)
-    
+
     eye_mni_mask = nb.load(eye_mni_mask).get_data().astype(bool)
     temp_bone_mni_mask = nb.load(temp_bone_mni_mask).get_data().astype(bool)
     brain_mni_mask = nb.load(brain_mni_mask).get_data().astype(bool)
-    
 
-    #Extract stats
-    t1_subj_eye = stats.mode(t1_subj[eye_subj_mask][t1_subj[eye_subj_mask] > 0], axis = None)[0][0]
-    t1_subj_temp = stats.mode(t1_subj[temp_bone_subj_mask][t1_subj[temp_bone_subj_mask] > 0], axis = None)[0][0]
-    t2_subj_eye = stats.mode(t2_subj[eye_subj_mask][t2_subj[eye_subj_mask] > 0], axis = None)[0][0]
-    t2_subj_temp = stats.mode(t2_subj[temp_bone_subj_mask][t2_subj[temp_bone_subj_mask] > 0], axis = None)[0][0]
-    
-    print('\n{} mask values:\nT1 eye = {} T1 temp bone = {}\nT2 eye = {} T2 temp bone = {}'.format(subj, t1_subj_eye, t1_subj_temp, t2_subj_eye, t2_subj_temp))
-    
-    t1_mni_eye = stats.mode(t1_mni[eye_mni_mask][t1_mni[eye_mni_mask] > 0], axis = None)[0][0]
-    t1_mni_temp = stats.mode(t1_mni[temp_bone_mni_mask][t1_mni[temp_bone_mni_mask] > 0], axis = None)[0][0]
-    t2_mni_eye = stats.mode(t2_mni[eye_mni_mask][t2_mni[eye_mni_mask] > 0], axis = None)[0][0]
-    t2_mni_temp = stats.mode(t2_mni[temp_bone_mni_mask][t2_mni[temp_bone_mni_mask] > 0], axis = None)[0][0]
+    t1 = ['t1', t1_subj, t1_mni]
+    t2 = ['t2', t2_subj, t2_mni]
 
-    print('\nMNI mask values:\nT1 eye = {} T1 temp bone = {}\nT2 eye = {} T2 temp bone = {}\n'.format(t1_mni_eye, t1_mni_temp, t2_mni_eye, t2_mni_temp))
+    scan_data = [t1, t2]
+    scan_fn_list = []
 
-    #Shorten linear equation for easier troubleshooting
-    t1_a = (t1_mni_temp - t1_mni_eye) / (t1_subj_temp - t1_subj_eye)
-    t1_b = ((t1_subj_temp * t1_mni_eye) - (t1_mni_temp * t1_subj_eye)) / (t1_subj_temp - t1_subj_eye)
+    for scan in scan_data:
+        scan_type, scan_subj, scan_mni = scan
+        print('***Calibrating {}***'.format(scan_type))
 
-    t2_a = (t2_mni_temp - t2_mni_eye) / (t2_subj_temp - t2_subj_eye)
-    t2_b = ((t2_subj_temp * t2_mni_eye) - (t2_mni_temp * t2_subj_eye)) / (t2_subj_temp - t2_subj_eye)
+        #Extract stats
 
+        Es = stats.mode(scan_subj[eye_subj_mask], axis = None)[0][0]
+        Ms = stats.mode(scan_subj[temp_bone_subj_mask], axis = None)[0][0]
 
-    #Intensity correction
-    t1_corr = (t1_a * t1_subj[brain_subj_mask]) + t1_b
-    t2_corr = (t2_a * t2_subj[brain_subj_mask]) + t2_b
+        print('\n{} mask values:\n{} eye = {} {} temp bone = {}'.format(subj, scan_type, Es, scan_type, Ms))
 
-    print('Bias corrected T1: {} {}'.format(t1_subj.min(), t1_subj.max()))
-    print('Bias corrected T2: {} {}'.format(t1_subj.min(), t1_subj.max()))
+        Er = stats.mode(scan_mni[eye_mni_mask], axis = None)[0][0]
+        Mr = stats.mode(scan_mni[temp_bone_mni_mask], axis = None)[0][0]
 
-    print('Calibrated T1: {} {}'.format(t1_corr.min(), t1_corr.max()))
-    print('Calibrated T2:{} {}'.format(t2_corr.min(), t2_corr.max()))
-    
-    t1_corr_out = np.zeros_like(t1_subj)
-    t2_corr_out = np.zeros_like(t2_subj)
-
-    t1_corr_out[brain_subj_mask] = t1_corr
-    t2_corr_out[brain_subj_mask] = t2_corr
-
-    if output_directory != None:
-        t1_fn = os.path.join(output_directory, 't1_calibrated.nii.gz')
-        t2_fn = os.path.join(output_directory, 't2_calibrated.nii.gz')
-    else:
-        t1_fn = 't1_calibrated.nii.gz'
-        t2_fn = 't2_calibrated.nii.gz'
+        print('\nMNI mask values:\n{} eye = {} {} temp bone = {}'.format(scan_type, Er, scan_type, Mr))
 
 
-    nb.Nifti1Image(t1_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(t1_fn)
-    nb.Nifti1Image(t2_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(t2_fn)
+        #Shorten linear equation for easier troubleshooting
+        eq_a = (Er - Mr) / (Es - Ms)
+        print('Eq a val: {}'.format(eq_a))
+        eq_b = ((Es * Mr) - (Er * Ms)) / (Es - Ms)
+        print('Eq b val: {}'.format(eq_b))
 
-    return(t1_fn, t2_fn)
+        #Intensity correction
+        scan_corr =  eq_a * scan_subj[brain_subj_mask] + eq_b
 
+        print('{} bias corrected {}: {} {}'.format(subj, scan_type, scan_subj.min(), scan_subj.max()))
+
+        print('{} calibrated {}: {} {}'.format(subj, scan_type, scan_corr.min(), scan_corr.max()))
+
+        scan_corr_out = np.zeros_like(scan_subj)
+
+        scan_corr_out[brain_subj_mask] = scan_corr
+#         scan_corr_out = scan_corr
+
+        if output_dir != None:
+            scan_fn = os.path.join(output_dir, '{}_calibrated.nii.gz'.format(scan_type))
+        else:
+            scan_fn = '{}_calibrated.nii.gz'.format(scan_type)
+
+        scan_fn_list.append(scan_fn)
+        nb.Nifti1Image(scan_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(scan_fn)
+
+    return(scan_fn_list)
 
 
 ###Myelin Map###
-
-def create_mm_func(corrected_t1, corrected_t2, output_dir):
+def create_mm_func(corrected_t1, corrected_t2, brain_mask, output_dir):
     """
     The final step. The hard yard. Creation of the myelin map
     through division of two matrices. Calculation of this in the pre-computer
@@ -506,17 +538,59 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
     mm_image - The myelin map in subject space.
     """
 
+    subj = os.path.split(output_dir)[-1]
+
     t1_hdr = nb.load(corrected_t1)
     t1_im = t1_hdr.get_data()
 
-    t2_im = nb.load(corrected_t2).get_data()
+    t2_im = np.abs(nb.load(corrected_t2).get_data())
 
-    im_mm = t1_im / t2_im
+    brain_mask = nb.load(brain_mask).get_data().astype(bool)
+
+    im_mm = np.zeros_like(t1_im)
+    im_mm[brain_mask] = t1_im[brain_mask] / t2_im[brain_mask]
     im_mm[np.isnan(im_mm)] = 0
-    
-    print('Myelin map values: {} {}'.format(im_mm.min(), im_mm.max()))
+    im_mm[np.isinf(im_mm)] = 0
+    print('MM Nans = {}'.format(np.isnan(im_mm).sum()))
+    print('MM Inf = {}'.format(np.isinf(im_mm).sum()))
+
+    im_mm[im_mm > 10] = 0
+
+    print('{} myelin map values: {} {}'.format(subj, im_mm.min(), im_mm.max()))
 
     out_im_fn = os.path.join(output_dir, 'myelin_map_subj.nii.gz')
     nb.Nifti1Image(im_mm, affine = t1_hdr.affine, header = t1_hdr.header).to_filename(out_im_fn)
+
+    return(out_im_fn)
+
+
+
+def mm_minmax(mmap, mask, output_dir):
+    """
+    Takes the raw myelin map output from create_mm_func and minmax (min = 0,
+    max = 1) standardises the voxels within the brain mask.
+    """
+
+    subj = os.path.split(output_dir)[-1]
+    basename = os.path.split(mmap)[1].split('.')[0]
+    outname = basename + '_minmax'
+
+    print(subj, outname, output_dir)
+
+    print('Running minmax standardisation on {}'.format(subj))
+
+    mmap_hdr = nb.load(mmap)
+    mmap_data = mmap_hdr.get_data()
+    mask = nb.load(mask).get_data().astype(bool)
+
+    mmap_flat = mmap_data[mask]
+    mmap_flat_minmax = (mmap_flat - np.min(mmap_flat)) / (np.max(mmap_flat) - np.min(mmap_flat))
+    print('{} minmax values: {} to {}'.format(subj, np.min(mmap_flat_minmax), np.max(mmap_flat_minmax)))
+    im_mm = np.zeros_like(mmap_data)
+    im_mm[mask] = mmap_flat_minmax
+
+    out_im_fn = os.path.join(output_dir, outname + '.nii.gz')
+
+    nb.Nifti1Image(im_mm, affine = mmap_hdr.affine, header = mmap_hdr.header).to_filename(out_im_fn)
 
     return(out_im_fn)
