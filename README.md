@@ -21,13 +21,12 @@ The pipeline expands on the simple method by using the method outlined by Ganzet
 8. Smoothing of output.
 
 Dependancies:
-Numpy >= 1.14.6
-Scipy >= 1.0.0
-Nibabel >= 2.3.0
-Seaborn >=0.8.1
-Nipype >= 1.1.1
-
-ANTs >= 2.2.0
+* Numpy >= 1.14.6
+* Scipy >= 1.0.0
+* Nibabel >= 2.3.0
+* Seaborn >=0.8.1
+* Nipype >= 1.1.1
+* ANTs >= 2.2.0
 
 Refs:
 
