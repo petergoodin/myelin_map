@@ -10,6 +10,7 @@ import fnmatch
 import glob
 import os
 
+
 def dcm_convert(scan_dict, output_dir):
 
     subj = os.path.split(output_dir)[-1]
@@ -48,8 +49,6 @@ def dcm_convert(scan_dict, output_dir):
 #Plot histograms of data
 def plot_mask_dist(t1_fn, t2_fn, eye_mask_fn, temp_bone_mask_fn, stat = None):
 
-
-
     t1 = nb.load(t1_fn).get_data().ravel()
     t2 = nb.load(t2_fn).get_data().ravel()
 
@@ -86,7 +85,7 @@ def plot_mask_dist(t1_fn, t2_fn, eye_mask_fn, temp_bone_mask_fn, stat = None):
     sns.distplot(t2[eye_mask], label = 'T2');
     plt.vlines(x = t2_eye_stat, ymin = ymin, ymax = ymax)
     plt.legend()
-    plt.show()
+    #plt.show()
 
     fig = plt.figure(figsize = [15, 10]);
     plt.subplot(2,1,2);
@@ -97,7 +96,9 @@ def plot_mask_dist(t1_fn, t2_fn, eye_mask_fn, temp_bone_mask_fn, stat = None):
     sns.distplot(t2[temp_mask], label = 'T2');
     plt.vlines(x = t2_temp_stat, ymin = ymin, ymax = ymax)
     plt.legend()
-    plt.show()
+    #plt.show()
+
+    plt.savefig('modes.png')
 
     print('T1 eye: {}\nT2 eye: {}\nT1 temp: {}\nT2 temp: {}'.format(t1_eye_stat, t2_eye_stat, t1_temp_stat, t2_temp_stat))
 
@@ -211,7 +212,7 @@ def ants_reg(fixed = None, moving = None, prefix = None, fixed_mask = None, movi
         else:
             reg.inputs.output_warped_image = './output_warped_image.nii.gz'
 
-        reg.inputs.num_threads = os.cpu_count()-1
+        reg.inputs.num_threads = 2
         reg.inputs.metric_weight = [1.0] * 3
         reg.inputs.winsorize_lower_quantile = 0.005
         reg.inputs.winsorize_upper_quantile = 0.995
@@ -330,7 +331,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
             rigid.inputs.output_warped_image = './output_rigid_image.nii.gz'
 
 
-        rigid.inputs.num_threads = os.cpu_count()-1
+        rigid.inputs.num_threads = 2
         rigid.inputs.metric_weight = [1.0]
         rigid.inputs.winsorize_lower_quantile = 0.005
         rigid.inputs.winsorize_upper_quantile = 0.995
@@ -373,7 +374,7 @@ def subj2mni(moving = None, ref = None, transmat = None, output_dir = None):
 ###INTENSITY MANIPULATION###
 
 #Bias correction
-def bias_corr(images, brain_mask, output_dir):
+def bias_corr(images, output_dir):
     '''
     Uses N4 bias correction to remove intensity inhomogeneities
 
@@ -404,12 +405,11 @@ def bias_corr(images, brain_mask, output_dir):
             n4.inputs.input_image = image
             n4.inputs.bspline_fitting_distance = 300
             n4.inputs.shrink_factor = 2
-            n4.inputs.n_iterations = [50,50,50,50]
+            n4.inputs.n_iterations = [50,50,30,20]
             n4.inputs.save_bias = True
             n4.inputs.bias_image = os.path.join(output_dir, image_name + '_bias_field.nii.gz')
             n4.inputs.output_image = os.path.join(output_dir, image_name + '_bias_corr.nii.gz')
-            n4.inputs.num_threads = os.cpu_count()-1
-            n4.inputs.mask_image = brain_mask
+            n4.inputs.num_threads = 2
             n4_results = n4.run()
 
 
@@ -438,18 +438,10 @@ def image_smooth(image_fn, fwhm = None, output_dir = None):
 
     return(output_fn)
 
+
+
 #Calibration stage
-def image_calibration(t1_subj_bias_corr = None,
-                      t2_subj_bias_corr = None,
-                      t1_mni_bias_corr = None,
-                      t2_mni_bias_corr = None,
-                      eye_subj_mask = None,
-                      temp_bone_subj_mask = None,
-                      brain_subj_mask = None,
-                      eye_mni_mask = None,
-                      temp_bone_mni_mask = None,
-                      brain_mni_mask = None,
-                      output_dir = None):
+def image_calibration(t1_subj_bias_corr = None, t2_subj_bias_corr = None, t1_mni_bias_corr = None, t2_mni_bias_corr = None, eye_subj_mask = None, temp_bone_subj_mask = None, brain_subj_mask = None, eye_mni_mask = None, temp_bone_mni_mask = None, brain_mni_mask = None, output_dir = None):
 
     subj = os.path.split(output_dir)[-1]
 
@@ -461,7 +453,6 @@ def image_calibration(t1_subj_bias_corr = None,
     t1_mni = nb.load(t1_mni_bias_corr).get_data()
     t2_mni = nb.load(t2_mni_bias_corr).get_data()
 
-
     #Load masks
     eye_subj_mask = nb.load(eye_subj_mask).get_data().astype(bool)
     temp_bone_subj_mask = nb.load(temp_bone_subj_mask).get_data().astype(bool)
@@ -471,60 +462,72 @@ def image_calibration(t1_subj_bias_corr = None,
     temp_bone_mni_mask = nb.load(temp_bone_mni_mask).get_data().astype(bool)
     brain_mni_mask = nb.load(brain_mni_mask).get_data().astype(bool)
 
-    t1 = ['t1', t1_subj, t1_mni]
-    t2 = ['t2', t2_subj, t2_mni]
 
-    scan_data = [t1, t2]
-    scan_fn_list = []
+    #Extract stats
+    t1_subj_eye = stats.mode(t1_subj[eye_subj_mask][t1_subj[eye_subj_mask] > 0], axis = None)[0][0]
+    t1_subj_temp = stats.mode(t1_subj[temp_bone_subj_mask][t1_subj[temp_bone_subj_mask] > 0], axis = None)[0][0]
+    t2_subj_eye = stats.mode(t2_subj[eye_subj_mask][t2_subj[eye_subj_mask] > 0], axis = None)[0][0]
+    t2_subj_temp = stats.mode(t2_subj[temp_bone_subj_mask][t2_subj[temp_bone_subj_mask] > 0], axis = None)[0][0]
 
-    for scan in scan_data:
-        scan_type, scan_subj, scan_mni = scan
-        print('***Calibrating {}***'.format(scan_type))
+    print('\n{} mask values:\nT1 eye = {} T1 temp bone = {}\nT2 eye = {} T2 temp bone = {}'.format(subj, t1_subj_eye, t1_subj_temp, t2_subj_eye, t2_subj_temp))
 
-        #Extract stats
+    t1_mni_eye = stats.mode(t1_mni[eye_mni_mask][t1_mni[eye_mni_mask] > 0], axis = None)[0][0]
+    t1_mni_temp = stats.mode(t1_mni[temp_bone_mni_mask][t1_mni[temp_bone_mni_mask] > 0], axis = None)[0][0]
+    t2_mni_eye = stats.mode(t2_mni[eye_mni_mask][t2_mni[eye_mni_mask] > 0], axis = None)[0][0]
+    t2_mni_temp = stats.mode(t2_mni[temp_bone_mni_mask][t2_mni[temp_bone_mni_mask] > 0], axis = None)[0][0]
 
-        Es = stats.mode(scan_subj[eye_subj_mask], axis = None)[0][0]
-        Ms = stats.mode(scan_subj[temp_bone_subj_mask], axis = None)[0][0]
+    print('\nMNI mask values:\nT1 eye = {} T1 temp bone = {}\nT2 eye = {} T2 temp bone = {}\n'.format(t1_mni_eye, t1_mni_temp, t2_mni_eye, t2_mni_temp))
 
-        print('\n{} mask values:\n{} eye = {} {} temp bone = {}'.format(subj, scan_type, Es, scan_type, Ms))
+    with open(os.path.join(output_dir, subj + 'mask_values.txt'), 'w') as text_file:
+        text_file.write('{} mask values:\nT1 eye = {} T1 temp bone = {}\nT2 eye = {} T2 temp bone = {}'.format(subj, t1_subj_eye, t1_subj_temp, t2_subj_eye, t2_subj_temp))
 
-        Er = stats.mode(scan_mni[eye_mni_mask], axis = None)[0][0]
-        Mr = stats.mode(scan_mni[temp_bone_mni_mask], axis = None)[0][0]
-
-        print('\nMNI mask values:\n{} eye = {} {} temp bone = {}'.format(scan_type, Er, scan_type, Mr))
+    #FOR FUTURE: SPLIT INTO 2 FUNCTIONS
 
 
-        #Shorten linear equation for easier troubleshooting
-        eq_a = (Er - Mr) / (Es - Ms)
-        print('Eq a val: {}'.format(eq_a))
-        eq_b = ((Es * Mr) - (Er * Ms)) / (Es - Ms)
-        print('Eq b val: {}'.format(eq_b))
+    #Shorten linear equation for easier troubleshooting
+    t1_a = (t1_mni_temp - t1_mni_eye) / (t1_subj_temp - t1_subj_eye)
+    t1_b = ((t1_subj_temp * t1_mni_eye) - (t1_mni_temp * t1_subj_eye)) / (t1_subj_temp - t1_subj_eye)
 
-        #Intensity correction
-        scan_corr =  eq_a * scan_subj[brain_subj_mask] + eq_b
+    t2_a = (t2_mni_temp - t2_mni_eye) / (t2_subj_temp - t2_subj_eye)
+    t2_b = ((t2_subj_temp * t2_mni_eye) - (t2_mni_temp * t2_subj_eye)) / (t2_subj_temp - t2_subj_eye)
 
-        print('{} bias corrected {}: {} {}'.format(subj, scan_type, scan_subj.min(), scan_subj.max()))
 
-        print('{} calibrated {}: {} {}'.format(subj, scan_type, scan_corr.min(), scan_corr.max()))
 
-        scan_corr_out = np.zeros_like(scan_subj)
 
-        scan_corr_out[brain_subj_mask] = scan_corr
-#         scan_corr_out = scan_corr
+    #Intensity correction
+    t1_corr = (t1_a * t1_subj[brain_subj_mask]) + t1_b
+    t2_corr = (t2_a * t2_subj[brain_subj_mask]) + t2_b
 
-        if output_dir != None:
-            scan_fn = os.path.join(output_dir, '{}_calibrated.nii.gz'.format(scan_type))
-        else:
-            scan_fn = '{}_calibrated.nii.gz'.format(scan_type)
+    print('{} bias corrected T1: {} {}'.format(subj, t1_subj.min(), t1_subj.max()))
+    print('{} bias corrected T2: {} {}'.format(subj, t1_subj.min(), t1_subj.max()))
 
-        scan_fn_list.append(scan_fn)
-        nb.Nifti1Image(scan_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(scan_fn)
+    print('{} calibrated T1: {} {}'.format(subj, t1_corr.min(), t1_corr.max()))
+    print('{} calibrated T2:{} {}'.format(subj, t2_corr.min(), t2_corr.max()))
 
-    return(scan_fn_list)
+    t1_corr_out = np.zeros_like(t1_subj)
+    t2_corr_out = np.zeros_like(t2_subj)
+
+    t1_corr_out[brain_subj_mask] = t1_corr
+    t2_corr_out[brain_subj_mask] = t2_corr
+
+    if output_dir != None:
+        t1_fn = os.path.join(output_dir, 't1_calibrated.nii.gz')
+        t2_fn = os.path.join(output_dir, 't2_calibrated.nii.gz')
+    else:
+        t1_fn = 't1_calibrated.nii.gz'
+        t2_fn = 't2_calibrated.nii.gz'
+
+
+    nb.Nifti1Image(t1_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(t1_fn)
+    nb.Nifti1Image(t2_corr_out, affine = t1_subj_hdr.affine, header = t1_subj_hdr.header).to_filename(t2_fn)
+
+    return(t1_fn, t2_fn)
+
 
 
 ###Myelin Map###
-def create_mm_func(corrected_t1, corrected_t2, brain_mask, output_dir):
+
+def create_mm_func(corrected_t1, corrected_t2, output_dir):
     """
     The final step. The hard yard. Creation of the myelin map
     through division of two matrices. Calculation of this in the pre-computer
@@ -543,18 +546,10 @@ def create_mm_func(corrected_t1, corrected_t2, brain_mask, output_dir):
     t1_hdr = nb.load(corrected_t1)
     t1_im = t1_hdr.get_data()
 
-    t2_im = np.abs(nb.load(corrected_t2).get_data())
+    t2_im = nb.load(corrected_t2).get_data()
 
-    brain_mask = nb.load(brain_mask).get_data().astype(bool)
-
-    im_mm = np.zeros_like(t1_im)
-    im_mm[brain_mask] = t1_im[brain_mask] / t2_im[brain_mask]
+    im_mm = t1_im / t2_im
     im_mm[np.isnan(im_mm)] = 0
-    im_mm[np.isinf(im_mm)] = 0
-    print('MM Nans = {}'.format(np.isnan(im_mm).sum()))
-    print('MM Inf = {}'.format(np.isinf(im_mm).sum()))
-
-    im_mm[im_mm > 10] = 0
 
     print('{} myelin map values: {} {}'.format(subj, im_mm.min(), im_mm.max()))
 
@@ -562,7 +557,6 @@ def create_mm_func(corrected_t1, corrected_t2, brain_mask, output_dir):
     nb.Nifti1Image(im_mm, affine = t1_hdr.affine, header = t1_hdr.header).to_filename(out_im_fn)
 
     return(out_im_fn)
-
 
 
 def mm_minmax(mmap, mask, output_dir):
@@ -594,3 +588,120 @@ def mm_minmax(mmap, mask, output_dir):
     nb.Nifti1Image(im_mm, affine = mmap_hdr.affine, header = mmap_hdr.header).to_filename(out_im_fn)
 
     return(out_im_fn)
+
+
+
+###FUNCTION FOR PARALLEL PROCESSING###
+
+def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
+
+    print('Processing data for subj {}'.format(subj))
+
+    try:
+        os.mkdir(out_dir)
+    except:
+        print('Directory {} exists. Not creating'.format(out_dir))
+
+    out_subj_dir = os.path.join(out_dir, subj)
+    print()
+
+    try:
+        os.mkdir(out_subj_dir)
+    except:
+        print('Directory {} already exists. Not creating.'.format(out_subj_dir))
+
+    print("\nWorking dir: {}".format(out_subj_dir))
+
+    ##Read in masks
+    t1_im_mni_fn = os.path.join('.', 'resources','mni_icbm152_t1_tal_nlin_sym_09a.nii.gz')
+    t2_im_mni_fn = os.path.join('.', 'resources','mni_icbm152_t2_tal_nlin_sym_09a.nii.gz')
+
+
+    eye_mni_mask_fn = os.path.join('.', 'resources','mni_icbm152_eye_mask_nlin_sym_09a.nii.gz')
+    temp_bone_mni_mask_fn = os.path.join('.', 'resources','mni_icbm152_temp_bone_mask_nlin_sym_09a.nii.gz')
+    brain_mni_mask_fn = os.path.join('.', 'resources','mni_icbm152_t1_tal_nlin_sym_09a_mask.nii.gz')
+
+
+
+    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, '*', patterns[0], '*{}'.format(dcm_suffix))),
+                 't2': glob.glob(os.path.join(raw_dir, subj, '*', patterns[1], '*{}'.format(dcm_suffix)))
+                 }
+
+    #Count number of scans for t1 and t2, print and write to file.
+    im_count = {k: len(list(scan_dict.values())[n]) for n, k in enumerate(scan_dict)}
+    print(subj, im_count)
+
+    with open(os.path.join(out_subj_dir, subj + 'input_files_n.txt'), 'w') as text_file:
+        text_file.write('{} - {}'.format(subj, im_count))
+
+
+    #Generate error if data not matching criteria
+    if len(scan_dict['t1']) < n_scans['t1']:
+        with open(os.path.join(out_subj_dir, subj + '_t1_error.txt'), 'w') as text_file:
+            text_file.write('Number of T1 scans < 100: {}'.format(len(scan_dict['t1'])))
+        #raise ValueError('Error: Number of DICOMS in T1 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t1'])))
+
+    if len(scan_dict['t2']) < n_scans['t2']:
+        with open(os.path.join(out_subj_dir, subj + '_t2_error.txt'), 'w') as text_file:
+            text_file.write('Number of T2 scans < 40: {}'.format(len(scan_dict['t2'])))
+        #raise ValueError('Error: Number of DICOMS in T2 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t2'])))
+
+
+    #Start pipeline
+    t1_subj_nii, t2_subj_nii = dcm_convert(scan_dict, out_subj_dir)
+
+    reg_output = ants_reg(fixed = t1_subj_nii, moving = t1_im_mni_fn, output_dir = out_subj_dir)
+
+    mask_list = [eye_mni_mask_fn, temp_bone_mni_mask_fn, brain_mni_mask_fn]
+
+    eye_subj_mask, temp_bone_subj_mask, brain_subj_mask = mask_transform(mask_list = mask_list,
+                                                                         ref = t1_subj_nii,
+                                                                         transmat = reg_output['composite_transform'],
+                                                                         output_dir = out_subj_dir)
+
+#    plot_ants_warp(fixed = t1_subj_nii, moving = brain_subj_mask, nslices = 10, output_name = os.path.join(out_subj_dir, 'brain_mask'))
+
+    rigid_output = ants_rigid(fixed = t1_subj_nii, moving = t2_subj_nii, output_dir = out_subj_dir)
+
+    t1_bias, t2_bias = bias_corr([t1_subj_nii, rigid_output['warped_image']], output_dir = out_subj_dir)
+
+    #Calibration - TO DO: Split function into mode calculation + linear correction
+    t1_cal, t2_cal = image_calibration(t1_subj_bias_corr = t1_bias,
+                                                           t2_subj_bias_corr = t2_bias,
+                                                           t1_mni_bias_corr = t1_im_mni_fn,
+                                                           t2_mni_bias_corr = t2_im_mni_fn,
+                                                           eye_subj_mask = eye_subj_mask,
+                                                           temp_bone_subj_mask = temp_bone_subj_mask,
+                                                           brain_subj_mask = brain_subj_mask,
+                                                           eye_mni_mask = eye_mni_mask_fn,
+                                                           temp_bone_mni_mask = temp_bone_mni_mask_fn,
+                                                           brain_mni_mask = brain_mni_mask_fn,
+                                                           output_dir = out_subj_dir)
+
+    #Calculate myelin maps
+    myelin_map_subj = create_mm_func(t1_cal, t2_cal, output_dir = out_subj_dir)
+
+    #Warp myelin maps to MNI space
+    subj2mni_output, subj2mni_im = subj2mni(moving = myelin_map_subj, ref = t1_im_mni_fn, transmat = reg_output['inverse_composite_transform'], output_dir = out_subj_dir)
+
+    #Smooth
+
+    if len(fwhm) > 1:
+    for im in [myelin_map_subj, subj2mni_im]:
+        for fwhm in fwhm_list:
+            smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
+    else:
+        for im in [myelin_map_subj, subj2mni_im]:
+            smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
+
+
+    #minmax
+    mmap_list = glob.glob(os.path.join(out_subj_dir, 'myelin_map*'))
+    mmap_list = [im for im in mmap_list if 'minmax' not in im]
+    print(mmap_list)
+
+    for im in mmap_list:
+        if 'mni' in im:
+            mm_minmax(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
+        else:
+            mm_minmax(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
