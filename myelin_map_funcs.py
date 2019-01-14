@@ -687,9 +687,9 @@ def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
     #Smooth
 
     if len(fwhm) > 1:
-    for im in [myelin_map_subj, subj2mni_im]:
-        for fwhm in fwhm_list:
-            smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
+        for im in [myelin_map_subj, subj2mni_im]:
+            for fwhm in fwhm_list:
+                smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
     else:
         for im in [myelin_map_subj, subj2mni_im]:
             smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
