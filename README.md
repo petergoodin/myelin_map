@@ -7,8 +7,6 @@ The method is simple:
 2. t1w / t2w
 3. Myelin map
 
-This repo contains a notebook showing the raw work and scripts to run to create the myelin maps using Nibabel, Advanced Normalization Tools (ANTs), scipy stats and some numpy tinkering. 
-
 The pipeline expands on the simple method by using the method outlined by Ganzetti et al.:
 
 1. Warping MNI template to subj space
@@ -20,7 +18,20 @@ The pipeline expands on the simple method by using the method outlined by Ganzet
 7. Warping of myelin map from subj space to MNI.
 8. Smoothing of output.
 
+
+This repo contains:
+
+* A notebook showing the raw work / validation of masks.
+
+* Scripts to create the myelin maps. Functions in the script use Nibabel, Advanced Normalization Tools (ANTs), scipy and some numpy tinkering. 
+
+* MNI templates for t1 and t2 images (in the resources directory)
+
+* Eye and temporalus muscle masks in MNI space (in the resources directory).
+
+
 Dependancies:
+* Python 3
 * Numpy >= 1.14.6
 * Scipy >= 1.0.0
 * Nibabel >= 2.3.0
