@@ -12,25 +12,28 @@ import joblib
 import os
 
 
-#Parameters:
+###Parameters###
 
 #Number of cores to use
 n_cores = mp.cpu_count() -1 #One for the OS.
 
 #Path to directory which contains subj/t1 and subj/t2 directories
-raw_dir = './raw_dir/'
+raw_dir = '/home/peter/mm_test/raw'
+
+#Path to root output directory (note: subj directories will be created as part of processing).
+output_dir = '/home/peter/mm_test/output'
 
 #Collect list of participant names (three methods, use which ever works best)
 subj_dirs = [subj for subj in os.listdir(raw_dir) if os.path.isdir(subj)]
-# subj_dirs = next(os.walk(raw_dir))[1]
-# subj_dirs = [] #Insert list of participant directory names here
+#subj_dirs = next(os.walk(raw_dir))[1]
+#subj_dirs = ['test_subj'] #Insert list of participant directory names here
 print('Number of subjects to be processed: {}'.format(len(subj_dirs)))
 
 #Strings to check for to determine t1 / t2 directories. Note: Uses glob, so wildcards / single string placeholders are acceptable.
-patterns = ['*t1_dir*', '*t2_dir*']
+patterns = ['t1_dir', 't2_dir']
 
 #Dicom suffix
-dcm_suffix = '.IMA'
+dcm_suffix = '.dcm'
 
 #List of smoothing kernel sizes (in mm) - Note: Can be single or multiple values.
 fwhm_list = [1, 2]
@@ -40,11 +43,13 @@ n_scans = {'t1': 100, 't2': 100}
 
 
 
-###Here the processing begins:###
+###Here the processing begins###
 
 if len(subj_dirs) == 1:
-    myelin_map_run(subj_dirs, n_cores, raw_dir, patterns, fwhm_list)
+    myelin_map_run(subj = subj_dirs.pop(), n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list)
+
 elif len(subj_dirs) > 1:
-    joblib.Parallel(n_jobs = n_cores, verbose = 10)(joblib.delayed(myelin_map_run)(subj, n_cores, raw_dir, patterns, fwhm_list) for subj in subj_dirs)
+    joblib.Parallel(n_jobs = n_cores, verbose = 10)(joblib.delayed(myelin_map_run)(subj = subj, n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list) for subj in subj_dirs)
+
 else:
     raise ValueError('Error: No participant names found in subj_dirs. Please check')

@@ -282,6 +282,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
         print('Rigid out', rigid_out_files)
 
     else:
+        print("Performing rigid registration of T1 and T2 images for subj {}".format(subj))
 
         rigid = ants.Registration()
 
@@ -331,7 +332,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
             rigid.inputs.output_warped_image = './output_rigid_image.nii.gz'
 
 
-        rigid.inputs.num_threads = 2
+        rigid.inputs.num_threads = 1
         rigid.inputs.metric_weight = [1.0]
         rigid.inputs.winsorize_lower_quantile = 0.005
         rigid.inputs.winsorize_upper_quantile = 0.995
@@ -392,6 +393,7 @@ def bias_corr(images, output_dir):
         bias_output.sort(key = len) #Assumes T2 image has been rigidly transformed to t1
 
     else:
+        print("Running bias correction for subj {}".format(subj))
         bias_output = []
 
         for n, image in enumerate(images):
@@ -409,7 +411,7 @@ def bias_corr(images, output_dir):
             n4.inputs.save_bias = True
             n4.inputs.bias_image = os.path.join(output_dir, image_name + '_bias_field.nii.gz')
             n4.inputs.output_image = os.path.join(output_dir, image_name + '_bias_corr.nii.gz')
-            n4.inputs.num_threads = 2
+            n4.inputs.num_threads = 1
             n4_results = n4.run()
 
 
@@ -593,16 +595,37 @@ def mm_minmax(mmap, mask, output_dir):
 
 ###FUNCTION FOR PARALLEL PROCESSING###
 
-def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
+def myelin_map_run(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_suffix, fwhm_list):
+    """
+    Wrapper function that is needed for parallel processing but can also be used for individual subjects.
+    
+    Inputs:
+    subj - name of participant to be processed (str)
+    n_cores - number of cores to be used for parallel processing (int).
+    note: for single participants only a single core is used).
+    raw_dir - path to root directory which houses subj/dicoms (str).
+    output_dir - path to write output to (note: output_dir is the root. Individual participant directories will be created during the process (str).
+    patterns - strings for how to recognise T1 and T2 dicom directories with the participant directory (dict).
+    n_scans - Number of expected dicom files in t1 and t2 directories (dict). 
+    dcm_suffix - Strings of file endings for how to recognise dicom files (str).
+    fwhm_list - Values for size of smoothing kernel (in mm) (list).
+    Note: Can be single value or multiple.
+
+    Output:
+    Everything.
+    """
+
+
+
 
     print('Processing data for subj {}'.format(subj))
 
     try:
-        os.mkdir(out_dir)
+        os.mkdir(output_dir)
     except:
-        print('Directory {} exists. Not creating'.format(out_dir))
+        print('Directory {} exists. Not creating'.format(output_dir))
 
-    out_subj_dir = os.path.join(out_dir, subj)
+    out_subj_dir = os.path.join(output_dir, subj)
     print()
 
     try:
@@ -623,15 +646,15 @@ def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
 
 
 
-    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, '*', patterns[0], '*{}'.format(dcm_suffix))),
-                 't2': glob.glob(os.path.join(raw_dir, subj, '*', patterns[1], '*{}'.format(dcm_suffix)))
+    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, patterns[0], '*{}'.format(dcm_suffix))),
+                 't2': glob.glob(os.path.join(raw_dir, subj, patterns[1], '*{}'.format(dcm_suffix)))
                  }
 
     #Count number of scans for t1 and t2, print and write to file.
     im_count = {k: len(list(scan_dict.values())[n]) for n, k in enumerate(scan_dict)}
     print(subj, im_count)
 
-    with open(os.path.join(out_subj_dir, subj + 'input_files_n.txt'), 'w') as text_file:
+    with open(os.path.join(out_subj_dir, subj + '_input_files_n.txt'), 'w') as text_file:
         text_file.write('{} - {}'.format(subj, im_count))
 
 
@@ -639,12 +662,12 @@ def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
     if len(scan_dict['t1']) < n_scans['t1']:
         with open(os.path.join(out_subj_dir, subj + '_t1_error.txt'), 'w') as text_file:
             text_file.write('Number of T1 scans < 100: {}'.format(len(scan_dict['t1'])))
-        #raise ValueError('Error: Number of DICOMS in T1 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t1'])))
+        raise ValueError('Error: Number of DICOMS in T1 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t1'])))
 
     if len(scan_dict['t2']) < n_scans['t2']:
         with open(os.path.join(out_subj_dir, subj + '_t2_error.txt'), 'w') as text_file:
             text_file.write('Number of T2 scans < 40: {}'.format(len(scan_dict['t2'])))
-        #raise ValueError('Error: Number of DICOMS in T2 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t2'])))
+        raise ValueError('Error: Number of DICOMS in T2 directory less than expected for subj {}\n# of Dicoms = {}'.format(subj, len(scan_dict['t2'])))
 
 
     #Start pipeline
@@ -686,13 +709,13 @@ def myelin_map_run(subj, n_cores, raw_dir, out_dir, patterns, fwhm_list):
 
     #Smooth
 
-    if len(fwhm) > 1:
+    if len(fwhm_list) > 1:
         for im in [myelin_map_subj, subj2mni_im]:
             for fwhm in fwhm_list:
                 smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
     else:
         for im in [myelin_map_subj, subj2mni_im]:
-            smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
+            smoothed = image_smooth(image_fn = im, fwhm = fwhm_list, output_dir = out_subj_dir)
 
 
     #minmax
