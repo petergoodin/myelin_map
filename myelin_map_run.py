@@ -1,8 +1,9 @@
-from myelin_map_funcs import dcm_convert, plot_mask_dist, plot_ants_warp, ants_reg, mask_transform, ants_rigid, subj2mni, bias_corr, image_calibration, create_mm_func, image_smooth, mm_minmax, myelin_map_run
+from myelin_map_funcs import dcm_convert, plot_mask_dist, plot_ants_warp, ants_reg, mask_transform, ants_rigid, subj2mni, bias_corr, image_calibration, create_mm_func, image_smooth, mm_minmax, myelin_map_proc
 import numpy as np
 import nibabel as nb
 from scipy import stats, signal
-import matplotlib.pylab as plt
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import seaborn as sns
 from nipype.interfaces import ants, dcm2nii
 import time
@@ -18,13 +19,14 @@ import os
 n_cores = mp.cpu_count() -1 #One for the OS.
 
 #Path to directory which contains subj/t1 and subj/t2 directories
-raw_dir = '/home/peter/mm_test/raw'
+raw_dir = '/mnt/c/Users/pgoodin/Desktop/mm_test/raw'
+
 
 #Path to root output directory (note: subj directories will be created as part of processing).
-output_dir = '/home/peter/mm_test/output'
+output_dir = '/mnt/c/Users/pgoodin/Desktop/mm_test/output'
 
 #Collect list of participant names (three methods, use which ever works best)
-subj_dirs = [subj for subj in os.listdir(raw_dir) if os.path.isdir(subj)]
+subj_dirs = [subj for subj in os.listdir(raw_dir) if os.path.isdir(os.path.join(raw_dir, subj))]
 #subj_dirs = next(os.walk(raw_dir))[1]
 #subj_dirs = ['test_subj'] #Insert list of participant directory names here
 print('Number of subjects to be processed: {}'.format(len(subj_dirs)))
@@ -46,10 +48,10 @@ n_scans = {'t1': 100, 't2': 100}
 ###Here the processing begins###
 
 if len(subj_dirs) == 1:
-    myelin_map_run(subj = subj_dirs.pop(), n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list)
+    myelin_map_proc(subj = subj_dirs[0], n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list)
 
 elif len(subj_dirs) > 1:
-    joblib.Parallel(n_jobs = n_cores, verbose = 10)(joblib.delayed(myelin_map_run)(subj = subj, n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list) for subj in subj_dirs)
+    joblib.Parallel(n_jobs = n_cores, verbose = 10)(joblib.delayed(myelin_map_proc)(subj = subj, n_cores = n_cores, raw_dir = raw_dir, output_dir = output_dir, patterns = patterns, n_scans = n_scans, dcm_suffix = dcm_suffix, fwhm_list = fwhm_list) for subj in subj_dirs)
 
 else:
     raise ValueError('Error: No participant names found in subj_dirs. Please check')
