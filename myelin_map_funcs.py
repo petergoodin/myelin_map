@@ -214,7 +214,7 @@ def ants_reg(fixed = None, moving = None, prefix = None, fixed_mask = None, movi
         else:
             reg.inputs.output_warped_image = './output_warped_image.nii.gz'
 
-        reg.inputs.num_threads = 2
+        reg.inputs.num_threads = 6
         reg.inputs.metric_weight = [1.0] * 3
         reg.inputs.winsorize_lower_quantile = 0.005
         reg.inputs.winsorize_upper_quantile = 0.995
@@ -338,7 +338,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
             rigid.inputs.output_warped_image = './output_rigid_image.nii.gz'
 
 
-        rigid.inputs.num_threads = 1
+        rigid.inputs.num_threads = 6
         rigid.inputs.metric_weight = [1.0]
         rigid.inputs.winsorize_lower_quantile = 0.005
         rigid.inputs.winsorize_upper_quantile = 0.995
@@ -417,7 +417,7 @@ def bias_corr(images, output_dir):
             n4.inputs.save_bias = True
             n4.inputs.bias_image = os.path.join(output_dir, image_name + '_bias_field.nii.gz')
             n4.inputs.output_image = os.path.join(output_dir, image_name + '_bias_corr.nii.gz')
-            n4.inputs.num_threads = 1
+            n4.inputs.num_threads = 6
             n4_results = n4.run()
 
 
@@ -726,6 +726,7 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
 #    plot_ants_warp(fixed = t1_subj_nii, moving = brain_subj_mask, nslices = 10, output_name = os.path.join(out_subj_dir, 'brain_mask'))
 
     rigid_output = ants_rigid(fixed = t1_subj_nii, moving = t2_subj_nii, output_dir = out_subj_dir)
+    print(t1_subj_nii, rigid_output['warped_image'])
 
     t1_bias, t2_bias = bias_corr([t1_subj_nii, rigid_output['warped_image']], output_dir = out_subj_dir)
 
@@ -759,7 +760,7 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
                 smoothed = image_smooth(image_fn = im, fwhm = fwhm, output_dir = out_subj_dir)
     else:
         for im in [myelin_map_subj, subj2mni_im]:
-            smoothed = image_smooth(image_fn = im, fwhm = fwhm_list, output_dir = out_subj_dir)
+            smoothed = image_smooth(image_fn = im, fwhm = fwhm_list[0], output_dir = out_subj_dir)
 
 
     #minmax

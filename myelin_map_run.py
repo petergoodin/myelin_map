@@ -38,7 +38,7 @@ patterns = ['t1_dir', 't2_dir']
 dcm_suffix = '.dcm'
 
 #List of smoothing kernel sizes (in mm) - Note: Can be single or multiple values.
-fwhm_list = [1, 2]
+fwhm_list = [1, 5, 10, 100]
 
 #Number of expected scans for t1 and t2:
 n_scans = {'t1': 100, 't2': 100}
