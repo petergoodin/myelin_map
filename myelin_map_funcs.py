@@ -307,7 +307,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
             rigid.inputs.output_transform_prefix = os.path.join(output_dir, 'rigid_trans_')
 
 
-        rigid.inputs.transforms = ['Rigid']
+        rigid.inputs.transforms = ['Affine']
         rigid.inputs.transform_parameters = [(0.1,)] #Size of movement for registration (Optimal values are 0.1-0.25.)
         rigid.inputs.number_of_iterations = [[1000, 500, 250, 100]]
         rigid.inputs.dimension = 3
@@ -586,7 +586,7 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
 
     im_mm[np.isnan(im_mm)] = 0
     im_mm[im_mm < 0] = 0
-    im_mm[im_mm >= 6] = 0 #Note, 6 is a value that works well to filter edge voxels with massive values.
+    # im_mm[im_mm >= 6] = 0 #Note, 6 is a value that works well to filter edge voxels with massive values.
     # im_mm = im_mm * (-1 * dif_mask)
     # im_mm[im_mm[dif_mask] == 1] = 0
 
@@ -602,18 +602,18 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
     return(out_im_fn)
 
 
-def mm_minmax(mmap, mask, output_dir):
+def mm_percentage(mmap, mask, output_dir):
     """
     Takes the raw myelin map output from create_mm_func and performs conversion to percentiles
     """
 
     subj = os.path.split(output_dir)[-1]
     basename = os.path.split(mmap)[1].split('.')[0]
-    outname = basename + '_minmax'
+    outname = basename + '_percentage'
 
     print(subj, outname, output_dir)
 
-    print('\nRunning minmax standardisation on {}'.format(subj))
+    print('\nConverting myelin map to percentage for {}'.format(subj))
 
     mmap_hdr = nb.load(mmap)
     mmap_data = mmap_hdr.get_data()
@@ -763,13 +763,13 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
             smoothed = image_smooth(image_fn = im, fwhm = fwhm_list[0], output_dir = out_subj_dir)
 
 
-    #minmax
+    #percentage
     mmap_list = glob.glob(os.path.join(out_subj_dir, 'myelin_map*'))
-    mmap_list = [im for im in mmap_list if 'minmax' not in im]
+    mmap_list = [im for im in mmap_list if 'percentage' not in im]
     print(mmap_list)
 
     for im in mmap_list:
         if 'mni' in im:
-            mm_minmax(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
+            mm_percentage(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
         else:
-            mm_minmax(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
+            mm_percentage(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
