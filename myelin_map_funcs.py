@@ -685,10 +685,12 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
     temp_bone_mni_mask_fn = os.path.join('.', 'resources','mni_temp_bone_mask.nii.gz')
     brain_mni_mask_fn = os.path.join('.', 'resources','mni_brain_mask.nii.gz')
 
+    subj_raw_dirs = os.listdir(os.path.join(raw_dir, subj))
+    t1_dir = [raw_dir for raw_dir in subj_raw_dirs if patterns[0] in raw_dir][0]
+    t2_dir = [raw_dir for raw_dir in subj_raw_dirs if patterns[1] in raw_dir][0]
 
-
-    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, patterns[0], '*{}'.format(dcm_suffix))),
-                 't2': glob.glob(os.path.join(raw_dir, subj, patterns[1], '*{}'.format(dcm_suffix)))
+    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, t1_dir, '*{}'.format(dcm_suffix))),
+                 't2': glob.glob(os.path.join(raw_dir, subj, t2_dir, '*{}'.format(dcm_suffix)))
                  }
 
     #Count number of scans for t1 and t2, print and write to file.
