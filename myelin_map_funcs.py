@@ -586,15 +586,10 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
 
     im_mm[np.isnan(im_mm)] = 0
     im_mm[im_mm < 0] = 0
-<<<<<<< HEAD
+
 
     hi = np.percentile(im_mm.ravel(), [99.95]) #Remove .05% extreme values caused by masking issues
     im_mm[im_mm > hi] = 0
-=======
-    # im_mm[im_mm >= 6] = 0 #Note, 6 is a value that works well to filter edge voxels with massive values.
-    # im_mm = im_mm * (-1 * dif_mask)
-    # im_mm[im_mm[dif_mask] == 1] = 0
->>>>>>> 53e40210bb0cb9fb23c6b28779e08245cbe7cd41
 
     print('\n{} myelin map values: \nmin = {}\nmax = {}\nmean = {} ({})\nmedian = {}'.format(subj, im_mm.min(),
                                                                                                 im_mm.max(),
@@ -615,11 +610,7 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
     return(out_im_fn)
 
 
-<<<<<<< HEAD
 def mm_percentile(mmap, mask, output_dir):
-=======
-def mm_percentage(mmap, mask, output_dir):
->>>>>>> 53e40210bb0cb9fb23c6b28779e08245cbe7cd41
     """
     Takes the raw myelin map output from create_mm_func and zeros values < 5th percentile and > 9th percentile.
     NOTE: This is for visualisation purposes ONLY
@@ -627,15 +618,12 @@ def mm_percentage(mmap, mask, output_dir):
 
     subj = os.path.split(output_dir)[-1]
     basename = os.path.split(mmap)[1].split('.')[0]
-<<<<<<< HEAD
     outname = basename + '_percentile'
-=======
-    outname = basename + '_percentage'
+
 
     print(subj, outname, output_dir)
 
     print('\nConverting myelin map to percentage for {}'.format(subj))
->>>>>>> 53e40210bb0cb9fb23c6b28779e08245cbe7cd41
 
     mmap_hdr = nb.load(mmap)
     mmap_data = mmap_hdr.get_data()
@@ -783,7 +771,6 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
             smoothed = image_smooth(image_fn = im, fwhm = fwhm_list[0], output_dir = out_subj_dir)
 
 
-<<<<<<< HEAD
     #Percentile
     mmap_list = glob.glob(os.path.join(out_subj_dir, 'myelin_map*'))
     mmap_list = [im for im in mmap_list if 'percentile' not in im]
@@ -793,15 +780,9 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
             mm_percentile(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
         else:
             mm_percentile(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
-=======
-    #percentage
-    mmap_list = glob.glob(os.path.join(out_subj_dir, 'myelin_map*'))
-    mmap_list = [im for im in mmap_list if 'percentage' not in im]
-    print(mmap_list)
 
     for im in mmap_list:
         if 'mni' in im:
             mm_percentage(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
         else:
             mm_percentage(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
->>>>>>> 53e40210bb0cb9fb23c6b28779e08245cbe7cd41
