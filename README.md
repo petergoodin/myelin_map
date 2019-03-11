@@ -7,7 +7,7 @@ The method is simple:
 2. t1w / t2w
 3. Myelin map
 
-The pipeline expands on the simple method by using the method outlined by Ganzetti et al.:
+The pipeline expands on the simple method by using the method outlined by Ganzetti et al. (with a couple of tweaks, like using ANTs):
 
 1. Warping MNI template to subj space
 2. Warping MNI eye + temporal bone + brain masks from MNI to subj space

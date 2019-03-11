@@ -1,4 +1,4 @@
-from myelin_map_funcs import dcm_convert, plot_mask_dist, plot_ants_warp, ants_reg, mask_transform, ants_rigid, subj2mni, bias_corr, image_calibration, create_mm_func, image_smooth, mm_minmax, myelin_map_proc
+from myelin_map_funcs import dcm_convert, plot_mask_dist, plot_ants_warp, ants_reg, mask_transform, ants_rigid, subj2mni, bias_corr, image_calibration, create_mm_func, image_smooth, mm_percentile, myelin_map_proc
 import numpy as np
 import nibabel as nb
 from scipy import stats, signal
@@ -38,7 +38,7 @@ patterns = ['t1_dir', 't2_dir']
 dcm_suffix = '.dcm'
 
 #List of smoothing kernel sizes (in mm) - Note: Can be single or multiple values.
-fwhm_list = [1, 5, 10, 100]
+fwhm_list = [1, 2, 3]
 
 #Number of expected scans for t1 and t2:
 n_scans = {'t1': 100, 't2': 100}

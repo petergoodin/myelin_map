@@ -307,7 +307,7 @@ def ants_rigid(fixed = None, moving = None, prefix = None, fixed_mask = None, mo
             rigid.inputs.output_transform_prefix = os.path.join(output_dir, 'rigid_trans_')
 
 
-        rigid.inputs.transforms = ['Rigid']
+        rigid.inputs.transforms = ['Affine']
         rigid.inputs.transform_parameters = [(0.1,)] #Size of movement for registration (Optimal values are 0.1-0.25.)
         rigid.inputs.number_of_iterations = [[1000, 500, 250, 100]]
         rigid.inputs.dimension = 3
@@ -586,9 +586,9 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
 
     im_mm[np.isnan(im_mm)] = 0
     im_mm[im_mm < 0] = 0
-    im_mm[im_mm >= 6] = 0 #Note, 6 is a value that works well to filter edge voxels with massive values.
-    # im_mm = im_mm * (-1 * dif_mask)
-    # im_mm[im_mm[dif_mask] == 1] = 0
+
+    hi = np.percentile(im_mm.ravel(), [99.95]) #Remove .05% extreme values caused by masking issues
+    im_mm[im_mm > hi] = 0
 
     print('\n{} myelin map values: \nmin = {}\nmax = {}\nmean = {} ({})\nmedian = {}'.format(subj, im_mm.min(),
                                                                                                 im_mm.max(),
@@ -596,42 +596,42 @@ def create_mm_func(corrected_t1, corrected_t2, output_dir):
                                                                                                 np.std(im_mm[im_mm > 0]),
                                                                                                 np.median(im_mm[im_mm > 0])))
 
+
     out_im_fn = os.path.join(output_dir, 'myelin_map_subj.nii.gz')
+
+    t1_hdr.header['cal_min'] = im_mm.min()
+    t1_hdr.header['cal_max'] = im_mm.max()
+
+    print('HEADER MIN: {}\nHEADER MAX: {}'.format(t1_hdr.header['cal_min'], t1_hdr.header['cal_max']))
+
     nb.Nifti1Image(im_mm, affine = t1_hdr.affine, header = t1_hdr.header).to_filename(out_im_fn)
 
     return(out_im_fn)
 
 
-def mm_minmax(mmap, mask, output_dir):
+def mm_percentile(mmap, mask, output_dir):
     """
-    Takes the raw myelin map output from create_mm_func and performs conversion to percentiles
+    Takes the raw myelin map output from create_mm_func and zeros values < 5th percentile and > 9th percentile.
+    NOTE: This is for visualisation purposes ONLY
     """
 
     subj = os.path.split(output_dir)[-1]
     basename = os.path.split(mmap)[1].split('.')[0]
-    outname = basename + '_minmax'
-
-    print(subj, outname, output_dir)
-
-    print('\nRunning minmax standardisation on {}'.format(subj))
+    outname = basename + '_percentile'
 
     mmap_hdr = nb.load(mmap)
     mmap_data = mmap_hdr.get_data()
     mask = nb.load(mask).get_data().astype(bool)
 
-    max_val = mmap_data.max()
+    mmap_data = ((mmap_data - mmap_data.min() * (1 - 0)) / (mmap_data.max() - mmap_data.min()) + 0)
 
-    im_mm = mmap_data / max_val
-
-    # mmap_flat = mmap_data[mask]
-    # mmap_flat_minmax = (mmap_flat - np.min(mmap_flat)) / (np.max(mmap_flat) - np.min(mmap_flat))
-    # print('{} minmax values: {} to {}'.format(subj, np.min(mmap_flat_minmax), np.max(mmap_flat_minmax)))
-    # im_mm = np.zeros_like(mmap_data)
-    # im_mm[mask] = mmap_flat_minmax
 
     out_im_fn = os.path.join(output_dir, outname + '.nii.gz')
 
-    nb.Nifti1Image(im_mm, affine = mmap_hdr.affine, header = mmap_hdr.header).to_filename(out_im_fn)
+    mmap_hdr.header['cal_min'] = 0
+    mmap_hdr.header['cal_max'] = 1
+
+    nb.Nifti1Image(mmap_data, affine = mmap_hdr.affine, header = mmap_hdr.header).to_filename(out_im_fn)
 
     return(out_im_fn)
 
@@ -685,10 +685,12 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
     temp_bone_mni_mask_fn = os.path.join('.', 'resources','mni_temp_bone_mask.nii.gz')
     brain_mni_mask_fn = os.path.join('.', 'resources','mni_brain_mask.nii.gz')
 
+    subj_raw_dirs = os.listdir(os.path.join(raw_dir, subj))
+    t1_dir = [raw_dir for raw_dir in subj_raw_dirs if patterns[0] in raw_dir][0]
+    t2_dir = [raw_dir for raw_dir in subj_raw_dirs if patterns[1] in raw_dir][0]
 
-
-    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, patterns[0], '*{}'.format(dcm_suffix))),
-                 't2': glob.glob(os.path.join(raw_dir, subj, patterns[1], '*{}'.format(dcm_suffix)))
+    scan_dict = {'t1': glob.glob(os.path.join(raw_dir, subj, t1_dir, '*{}'.format(dcm_suffix))),
+                 't2': glob.glob(os.path.join(raw_dir, subj, t2_dir, '*{}'.format(dcm_suffix)))
                  }
 
     #Count number of scans for t1 and t2, print and write to file.
@@ -763,13 +765,12 @@ def myelin_map_proc(subj, n_cores, raw_dir, output_dir, patterns, n_scans, dcm_s
             smoothed = image_smooth(image_fn = im, fwhm = fwhm_list[0], output_dir = out_subj_dir)
 
 
-    #minmax
+    #Percentile
     mmap_list = glob.glob(os.path.join(out_subj_dir, 'myelin_map*'))
-    mmap_list = [im for im in mmap_list if 'minmax' not in im]
-    print(mmap_list)
+    mmap_list = [im for im in mmap_list if 'percentile' not in im]
 
     for im in mmap_list:
         if 'mni' in im:
-            mm_minmax(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
+            mm_percentile(mmap = im, mask = brain_mni_mask_fn, output_dir = out_subj_dir)
         else:
-            mm_minmax(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
+            mm_percentile(mmap = im, mask = brain_subj_mask, output_dir = out_subj_dir)
